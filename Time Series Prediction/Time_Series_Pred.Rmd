@@ -1,0 +1,261 @@
+#removing cientitific notation
+options(scipen = 999)
+
+#install packages
+library(urca)
+library("fpp")
+library("forecast")
+library("astsa")
+library("tseries")
+library("readxl")
+
+#importing the time series
+alcohol_ts <- ts  (read_excel("D:\\Gustavo\\FEP\\Mestrado\\MSPT\\projcect\\archive\\Alcohol_Sales.xlsx"),start=c(2003,1), deltat=1/12)
+
+#importing the result time series
+alcohol_ts_res <- ts  (read_excel("D:\\Gustavo\\FEP\\Mestrado\\MSPT\\projcect\\archive\\Alcohol_Sales_results.xlsx"),start=c(2018,2), deltat=1/12)
+
+#pltoing the TS
+par(mfrow=c(1,1))
+plot(alcohol_ts, xlab="Time",ylab="Sales", main="Alcohol")
+
+#Holt winters's method (exponential smoothing)
+xhw <- HoltWinters(alcohol_ts,seasonal="m")
+xhw
+
+predict_xhw <- predict(xhw, n.ahead=12)
+accuracy(predict_xhw, alcohol_ts_res)
+
+#decompostion - multiplicative
+dec_alcohol_ts <- decompose(alcohol_ts, type="m")
+plot(dec_alcohol_ts)
+
+#ACF time-series
+acf2(alcohol_ts)
+
+
+#logaritimizar
+lalcohol_ts<- log(alcohol_ts) 
+  ndiffs(lalcohol_ts) #1 para dados logaritmizados
+  plot(lalcohol_ts)
+  acf2(lalcohol_ts)
+  acf2(diff(lalcohol_ts, 12))
+  acf2(diff(diff(lalcohol_ts, 12)))
+#não teve qualqueer efeito
+
+#Box.Cox Transformation
+lambda <- BoxCox.lambda(alcohol_ts)
+alcohol_ts_box.cox <- BoxCox(alcohol_ts,lambda)
+
+InvBoxCox(alcohol_ts,lambda)
+
+plot(alcohol_ts_box.cox, xlab="Time",ylab="Sales", main="box.cox_alcohol_ts")
+
+par(mfrow=c(1,2))
+acf2(alcohol_ts_box.cox,80)
+
+#D=1 s=12
+alcohol_ts_box.cox_D1 <- diff(alcohol_ts_box.cox,lag=12)
+
+alcohol_ts_box.cox_D2 <- diff(alcohol_ts_box.cox,lag=72)
+
+par(mfrow=c(1,1))
+plot(alcohol_ts_box.cox_D1, xlab="Time",ylab="Sales", main="alcohol_ts_box.cox_D1")
+
+par(mfrow=c(1,2))
+acf2(alcohol_ts_box.cox_D1,80)
+
+acf2(diff(diff(alcohol_ts_box.cox_D1)),120)
+
+
+
+#diff
+ndiffs(alcohol_ts)
+
+par(mfrow=c(1,2))
+acf2(alcohol_ts, 80)
+
+#d=1
+par(mfrow=c(1,1))
+plot(diff(alcohol_ts))
+
+par(mfrow=c(1,2))
+acf2(diff(alcohol_ts),120)
+
+
+#D=1 s=12
+par(mfrow=c(1,1))
+diff_alcohol_ts_12 <- diff(alcohol_ts,lag=12)
+plot(diff_alcohol_ts_12, xlab="Time",ylab="Sales", main="diff(alcohol_ts,lag=12)")
+
+dec_alcohol_ts_D1 <- decompose(diff(alcohol_ts,lag=12), type="m")
+plot(dec_alcohol_ts_D1)
+
+par(mfrow=c(1,2))
+acf2(diff(alcohol_ts,lag=12),120)
+
+#d1,D1
+plot(diff(diff(alcohol_ts),lag=12))
+
+dec_alcohol_ts_d1_D1 <- decompose(diff(diff(alcohol_ts),lag=12), type="m")
+plot(dec_alcohol_ts_d1_D1)
+
+par(mfrow=c(1,2))
+acf2(diff(diff(alcohol_ts),lag=12),120)
+
+#d2,D1
+plot(diff(diff(diff(alcohol_ts)),lag=12))
+
+
+#ADF test
+summary(ur.df(alcohol_ts,type="trend",lags=1)) #d=0
+t-stats = -10.202 and 5% cp=-1.95, we reject H0 (is stationary)
+
+adf.test(alcohol_ts, k=2)
+
+#ADF test box.cox transf
+summary(ur.df(alcohol_ts_box.cox,type="trend",lags=1)) #d=0
+t-stats = -9.9637 and 5% cp=-1.95, we reject H0 (is stationary)
+
+#ADF test w/ D1
+summary(ur.df(diff_alcohol_ts_12,type="trend",lags=2)) #d=0
+t-stats = -3.9277 and 5% cp=-1.95, we reject H0 (is stationary)
+
+#ADF test w/ D1 AND test box.cox transf
+summary(ur.df(alcohol_ts_box.cox_D1,type="trend",lags=2)) #d=0
+t-stats = -3.9184 and 5% cp=-1.95, we reject H0 (is stationary)
+
+#Phillips and Perron test; 
+summary(ur.pp(alcohol_ts,type="Z-tau", model="constant", lags="short")) #d=0
+To/alpha = -5.6249 > -2.87 => Reject H0 (there is only one unit root, stationary)
+
+#PP test w/ D1
+summary(ur.pp(diff_alcohol_ts_12,type="Z-tau", model="constant", lags="short")) #D1,d=0
+To/alpha = -14.4032 < -2.87 => Reject H0 (there is only one unit root, stationary)
+
+#PP test box.cox transf
+summary(ur.pp(alcohol_ts_box.cox,type="Z-tau", model="constant", lags="short")) #d=0
+To/alpha = -5.5798 < -2.87 => Reject H0 (there is only one unit root, stationary)
+
+#PP test w/ D1 AND test box.cox transf
+summary(ur.pp(alcohol_ts_box.cox_D1,type="Z-tau", model="constant", lags="short")) #d=0
+To/alpha = -14.0887 < -2.87 => Reject H0 (there is only one unit root, stationary)
+
+#KPSS #with trend (type = tau)
+summary(ur.kpss(alcohol_ts,type="tau", lags="short")) #d=0
+kpss=0.061<0.463 => Fail to reject H0 => Xt is stationary
+
+#KPSS #with box.cox transf
+summary(ur.kpss(alcohol_ts_box.cox,type="tau", lags="short")) #d=0
+kpss=0.0958<0.463 => Fail to reject H0 => Xt is stationary
+
+#KPSS #with D1 AND test box.cox transf
+summary(ur.kpss(alcohol_ts_box.cox_D1,type="tau", lags="short")) #d=0
+kpss=0.1277<0.463 => Fail to reject H0 => Xt is stationary
+
+kpss.test(alcohol_ts_box.cox_D1)
+
+#Modl idntification
+
+alcohol_ts.auto <- auto.arima(alcohol_ts,seasonal="true")
+alcohol_ts.auto 
+#ARIMA(3,0,2)(0,1,2)[12] with drift 
+#AIC = 2485.59
+tsdiag(alcohol_ts.auto)
+
+alcohol_10 <- arima(alcohol_ts,order=c(3,0,2),seasonal=list(order=c(0,1,2),period=12))
+
+alcohol_1 <- arima(alcohol_ts,order=c(3,1,2),seasonal=list(order=c(0,1,2),period=12))
+#ARIMA(3,1,2)(0,1,2)[12]
+#AIC = 2485.5
+tsdiag(alcohol_1)
+
+alcohol_2 <- arima(alcohol_ts,order=c(4,0,2),seasonal=list(order=c(0,1,2),period=12))
+#ARIMA(4,0,2)(0,1,2)[12]
+#AIC = 2504.23
+tsdiag(alcohol_2)
+
+alcohol_3 <- arima(alcohol_ts,order=c(5,0,2),seasonal=list(order=c(0,1,2),period=12))
+#ARIMA(4,0,2)(0,1,2)[12]
+#AIC = 2502.26
+tsdiag(alcohol_3)
+
+#modelo escolhido
+alcohol_4 <- arima(alcohol_ts,order=c(3,0,2),seasonal=list(order=c(2,1,2),period=12))
+#ARIMA(3,0,2)(2,1,2)[12]
+#AIC = 2476.23
+tsdiag(alcohol_4)
+alcohol_4res <- alcohol_4$resuduals
+acf2(alcohol_4res)
+Box.test(alcohol_4res,lag=80,type="Ljung-Box")
+
+alcohol_5 <- arima(alcohol_ts,order=c(4,0,2),seasonal=list(order=c(1,1,2),period=12))
+#ARIMA(4,0,2)(1,1,2)[12]
+#AIC = 2504.26
+tsdiag(alcohol_5)
+
+alcohol_6 <- arima(alcohol_ts,order=c(9,1,1),seasonal=list(order=c(3,1,0),period=12))
+#ARIMA(9,1,1)(3,1,0)[12]
+#AIC = 2462.66
+tsdiag(alcohol_6)
+
+#w/ Box.Cox Tranfs
+
+box.cox.auto <- auto.arima(alcohol_ts,seasonal= "true",lambda="auto")
+box.cox.auto
+#ARIMA(3,0,0)(2,1,2)[12] with drift 
+#AIC=-720.36
+
+alcohol_1_D1 <- arima(alcohol_ts_box.cox,order=c(3,0,0),seasonal=list(order=c(2,1,2),period=12))
+#ARIMA(3,0,0)(2,1,2)[12]
+#AIC=-711.55
+
+alcohol_1_D2 <- arima(alcohol_ts_box.cox,order=c(3,0,0),seasonal=list(order=c(3,1,2),period=12))
+#ARIMA(3,0,0)(3,1,2)[12]
+#AIC=-718.28 w/ NaNs
+
+alcohol_1_D3 <- arima(alcohol_ts_box.cox,order=c(3,0,1),seasonal=list(order=c(3,1,2),period=12))
+#ARIMA(3,0,1)(3,1,2)[12]
+#AIC=-722.29
+
+alcohol_1_D4 <- arima(alcohol_ts_box.cox,order=c(3,0,1),seasonal=list(order=c(3,1,3),period=12))
+#ARIMA(3,0,1)(3,1,3)[12]
+#AIC=-731.56 w/ NaNs
+
+alcohol_1_D5 <- arima(alcohol_ts_box.cox,order=c(3,0,2),seasonal=list(order=c(3,1,3),period=12))
+#ARIMA(3,0,1)(3,1,3)[12]
+#AIC=-733.35
+
+#modelo escolhido
+alcohol_1_D6 <- arima(alcohol_ts_box.cox,order=c(3,0,2),seasonal=list(order=c(2,1,3),period=12))
+#ARIMA(3,0,1)(2,1,3)[12]
+#AIC=-735.37
+tsdiag(alcohol_1_D6)
+alcohol_1_D6res <- alcohol_1_D6$residuals
+acf2(alcohol_1_D6res, 80,main="Seasonal ARIMA(3,0,2)(2,1,3)12")
+Box.test(alcohol_1_D6res,lag=80,type="Ljung-Box")
+#p-value = 0.3785 > 5% => Do not reject H0 ât is approx at
+hist(alcohol_1_D6res)
+qqnorm(alcohol_1_D6res)
+shapiro.test(alcohol_1_D6res)
+#p-value = 0.6404 > 5% => Do not reject normality
+jarque.bera.test(alcohol_1_D6res)
+#p-value = 0.8499 > 5% => Do not reject H0
+Model is satisfatory
+
+alcohol_1_D7 <- arima(alcohol_ts_box.cox,order=c(3,0,2),seasonal=list(order=c(1,1,3),period=12))
+#ARIMA(3,0,1)(3,1,3)[12]
+#AIC=-691.33
+
+
+#forecast
+predict12 <- predict(alcohol_4,n.ahead=12)
+predict_alcohol_4 <- sarima.for(alcohol_ts, n.ahead = 12, p=4, d=1, q=2, P = 2, D = 1, Q = 2, S = 12)
+predict_alcohol_4
+
+accuracy(predict_alcohol_4$pred, alcohol_ts_res)
+
+
+predict_alcohol_1_D6 <- forecast(alcohol_1_D6,h=12,lambda=lambda)
+S
+accuracy(predict_alcohol_1_D6$mean, alcohol_ts_res)
